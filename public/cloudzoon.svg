@@ -1,0 +1,36 @@
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Gradient -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />   <!-- blue-500 -->
+      <stop offset="100%" stop-color="#22D3EE" /> <!-- cyan-400 -->
+    </linearGradient>
+  </defs>
+
+  <!-- Logo box -->
+  <rect
+    x="10"
+    y="10"
+    width="60"
+    height="60"
+    rx="12"
+    fill="url(#grad)"
+    stroke="rgba(59,130,246,0.3)"
+    stroke-width="3"
+  />
+
+  <!-- Letter Z -->
+  <text
+    x="40"
+    y="52"
+    text-anchor="middle"
+    font-size="32"
+    font-family="Inter, sans-serif"
+    font-weight="700"
+    fill="white"
+  >
+    Z
+  </text>
+
+</svg>
