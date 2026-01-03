@@ -7,17 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, ".", "");
+  const env = loadEnv(mode, process.cwd(), "");
 
   return {
     server: {
       port: 80,
       host: "0.0.0.0",
-      allowedHosts: [
-        "local.devzoon.xyz",
-        "app.devzoon.xyz",
-        "cloud.devzoon.xyz",
-      ],
+      allowedHosts: [env.VITE_ALLOW_HOST_NAME],
     },
     plugins: [react()],
     resolve: {
