@@ -10,25 +10,25 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone frontend from git
-        run: git clone https://github.com/AnandMaharana2004/storage-app-frontend.git
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install dependencies
-        run: cd storage-app-frontend && npm install
-      
+        run: npm install
+
       - name: Create .env file
-        run: echo "ALLOW_HOST_NAME=cloud.devzoon.xyz" > storage-app-frontend/.env
-      
+        run: echo "ALLOW_HOST_NAME=cloud.devzoon.xyz" > .env
+
       - name: Build project
-        run: cd storage-app-frontend && npm run build
-      
+        run: npm run build
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      
+
       - name: Determine S3 path
         id: s3-path
         run: |
@@ -37,10 +37,10 @@ jobs:
           else
             echo "path=app" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Upload to S3
-        run: cd storage-app-frontend && aws s3 sync dist/ "s3://${{ secrets.S3_BUCKET_NAME }}/${{ steps.s3-path.outputs.path }}" --delete
-      
+        run: aws s3 sync dist/ "s3://${{ secrets.S3_BUCKET_NAME }}/${{ steps.s3-path.outputs.path }}" --delete
+
       - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
