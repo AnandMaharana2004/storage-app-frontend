@@ -29,5 +29,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       
+      - name: Determine S3 path
+        id: s3-path
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "path=cloud" >> $GITHUB_OUTPUT
+          else
+            echo "path=app" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Upload to S3
-        run: cd storage-app-frontend && aws s3 sync dist/ "s3://${{ secrets.S3_BUCKET_NAME }}/test" --delete
+        run: cd storage-app-frontend && aws s3 sync dist/ "s3://${{ secrets.S3_BUCKET_NAME }}/${{ steps.s3-path.outputs.path }}" --delete
+      
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/${{ steps.s3-path.outputs.path }}/*"
