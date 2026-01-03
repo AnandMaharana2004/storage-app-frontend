@@ -8,7 +8,7 @@ import prettier from "eslint-config-prettier";
 export default defineConfig([
   globalIgnores(["dist"]),
   {
-    files: ["**/*.{js,jsx}"],
+    files: ["**/*.{js,jsx,ts,tsx}"],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -20,7 +20,7 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: {
         ecmaVersion: "latest",
-        ecmaFeatures: { jsx: true },
+        ecmaFeatures: { tsx: true },
         sourceType: "module",
       },
     },
