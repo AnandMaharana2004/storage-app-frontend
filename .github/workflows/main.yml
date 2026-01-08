@@ -18,10 +18,12 @@ jobs:
 
       - name: Create .env file
         run: |
+          echo "VITE_BACKEND_ORIGIN=http://api.local.devzoon.xyz" > .env
+          echo "VITE_GOOGLE_CLIENT_ID=${{secrets.GOOGLE_CLIENT_ID}}" >> .env
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "VITE_ALLOW_HOST_NAME=cloud.devzoon.xyz" > .env
+            echo "VITE_ALLOW_HOST_NAME=cloud.devzoon.xyz" >> .env
           else
-            echo "VITE_ALLOW_HOST_NAME=app.devzoon.xyz" > .env
+            echo "VITE_ALLOW_HOST_NAME=app.devzoon.xyz" >> .env
           fi
 
       - name: Build project
