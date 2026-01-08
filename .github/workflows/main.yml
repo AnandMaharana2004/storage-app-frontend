@@ -18,7 +18,7 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "VITE_BACKEND_ORIGIN=http://api.local.devzoon.xyz" > .env
+          echo "VITE_BACKEND_ORIGIN=http://api.devzoon.xyz" > .env
           echo "VITE_GOOGLE_CLIENT_ID=${{secrets.GOOGLE_CLIENT_ID}}" >> .env
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "VITE_ALLOW_HOST_NAME=cloud.devzoon.xyz" >> .env
