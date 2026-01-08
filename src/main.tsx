@@ -10,8 +10,7 @@ if (!rootElement) {
   throw new Error("Root element not found");
 }
 
-const clieentId =
-  "542486813668-0odum7g1jsm00a2b5u26au9lc92gv9gq.apps.googleusercontent.com";
+const clieentId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 ReactDOM.createRoot(rootElement).render(
   <GoogleOAuthProvider clientId={clieentId}>

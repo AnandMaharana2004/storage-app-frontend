@@ -2,8 +2,7 @@ import axios from "axios";
 import { redirect } from "react-router-dom";
 
 const axiosInstance = axios.create({
-  baseURL: "https://api.devzoon.xyz", // production
-  // baseURL: "http://api.local.devzoon.xyz", // local
+  baseURL: import.meta.env.VITE_BACKEND_ORIGIN,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
