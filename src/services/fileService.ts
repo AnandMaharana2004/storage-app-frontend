@@ -1,55 +1,126 @@
-import { AwardIcon } from "lucide-react";
 import { FileItem, FolderItem } from "../types";
 import axiosInstance from "./axios";
-import {
-  mockDb,
-  delay,
-  shouldFail,
-  getFileType,
-  formatFileSize,
-  timeAgo,
-} from "./mockDb";
+import { getFileType, formatFileSize, timeAgo } from "./mockDb";
+
+interface DirectoryResponse {
+  directory: {
+    _id: string;
+    name: string;
+    size: number;
+    parentDirId: string | null;
+    fileCount: number;
+    folderCount: number;
+    totalSizeInByte: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+  subdirectories: Array<{
+    _id: string;
+    name: string;
+    size: number;
+    parentDirId: string;
+    createdAt: string;
+    updatedAt: string;
+    fileCount: number;
+    folderCount: number;
+    totalSizeInByte: number;
+  }>;
+  files: Array<{
+    _id: string;
+    name: string;
+    size: number;
+    extension: string;
+    isUploading: boolean;
+    parentDirId: string;
+    createdAt: string;
+    updatedAt: string;
+    url: string;
+    isStarred?: boolean;
+    deletedAt?: string;
+  }>;
+  breadcrumbs: Array<{
+    _id: string;
+    name: string;
+  }>;
+}
 
 export const fileService = {
   fetchFileSystem: async (
-    directoryName: string,
+    folderId?: string | null,
   ): Promise<{
     folders: FolderItem[];
     files: FileItem[];
+    breadcrumbs: FolderItem[];
+    currentDirectory: {
+      id: string;
+      name: string;
+      parentId: string | null;
+    } | null;
   }> => {
-    const result = await axiosInstance.get(`/directory/${directoryName}`);
-    const { subdirectories, files } = result.data.data;
+    try {
+      // ✅ Use /directory for root, /directory/:folderId for specific folders
+      const endpoint = folderId ? `/directory/${folderId}` : `/directory`;
+      const result = await axiosInstance.get<{ data: DirectoryResponse }>(
+        endpoint,
+      );
 
-    const folders = subdirectories.map((dir) => {
-      return {
+      const { subdirectories, files, breadcrumbs, directory } =
+        result.data.data;
+
+      // Transform folders
+      const folders: FolderItem[] = subdirectories.map((dir) => ({
         id: dir._id,
         name: dir.name,
         color: ["blue", "orange", "emerald", "purple"][
           Math.floor(Math.random() * 4)
-        ],
-        parentFolderId: dir.parentDirId ?? null,
-        itemCount: dir.itemCount ?? 0,
-      };
-    });
-    const finalFiles = files.map((f) => {
-      return {
+        ] as string,
+        parentFolderId: dir.parentDirId,
+        itemCount: dir.fileCount + dir.folderCount,
+      }));
+
+      // Transform files
+      const transformedFiles: FileItem[] = files.map((f) => ({
         id: f._id,
         name: f.name,
         type: getFileType(f.extension) || "image",
         size: formatFileSize(f.size),
         thumbnail: f.url,
-        // thumbnail: "./video-placeholder.webp",
         isStarred: f.isStarred || false,
-        deletedAt: f.deletedAt || null,
+        deletedAt: f.deletedAt || undefined,
         url: f.url,
-        parentFolderId: f.parentDirId || null,
+        parentFolderId: f.parentDirId,
         date: timeAgo(f.createdAt),
+      }));
+
+      // Transform breadcrumbs from backend
+      const transformedBreadcrumbs: FolderItem[] = breadcrumbs.map((crumb) => ({
+        id: crumb._id,
+        name: crumb.name,
+        itemCount: 0,
+        color: "blue",
+      }));
+
+      // Current directory info
+      const currentDirectory = directory
+        ? {
+            id: directory._id,
+            name: directory.name,
+            parentId: directory.parentDirId,
+          }
+        : null;
+
+      return {
+        folders,
+        files: transformedFiles,
+        breadcrumbs: transformedBreadcrumbs,
+        currentDirectory,
       };
-    });
-    return {
-      folders: folders,
-      files: finalFiles,
-    };
+    } catch (error: any) {
+      console.error("Error fetching file system:", error);
+      throw new Error(
+        error.response?.data?.message || "Failed to fetch directory",
+      );
+    }
   },
 
   initiateUpload: async (
@@ -107,7 +178,6 @@ export const fileService = {
     });
   },
 
-  // FIXED: Properly transform API response to FileItem format
   completeUpload: async (
     fileKey: string,
     fileId: string,
@@ -118,27 +188,23 @@ export const fileService = {
 
     const fileInfo = result.data.data.file;
 
-    // Transform the API response to match FileItem interface
     const newFile: FileItem = {
       id: fileInfo._id,
       name: fileInfo.name,
       type: getFileType(fileInfo.extension) || "image",
       size: formatFileSize(fileInfo.size),
       date: timeAgo(fileInfo.createdAt),
-      parentFolderId: fileInfo.parentDirId || null,
+      parentFolderId: fileInfo.parentDirId || undefined,
       url: fileInfo.url,
       thumbnail: fileInfo.url,
       isStarred: false,
-      deletedAt: null,
+      deletedAt: undefined,
     };
     return newFile;
   },
 
   toggleStar: async (fileId: string): Promise<void> => {
-    await delay(200);
-    mockDb.files = mockDb.files.map((f) =>
-      f.id === fileId ? { ...f, isStarred: !f.isStarred } : f,
-    );
+    await axiosInstance.patch("/files/toggle-star", { fileId });
   },
 
   renameFile: async (
@@ -150,7 +216,7 @@ export const fileService = {
       newName: newName,
     });
 
-    if (result.status != 200)
+    if (result.status !== 200)
       throw new Error("Failed to rename file. Please try again.");
 
     return { fileName: newName };
@@ -180,7 +246,6 @@ export const fileService = {
     });
   },
 
-  // ADDED: New method to create folder that returns the created folder
   createFolder: async (
     name: string,
     parentFolderId: string,
@@ -196,7 +261,7 @@ export const fileService = {
       id: folderInfo._id,
       name: folderInfo.name,
       color: "amber",
-      parentFolderId: folderInfo.parentId || null,
+      parentFolderId: folderInfo.parentDirId || undefined,
       itemCount: 0,
     };
   },
@@ -216,17 +281,69 @@ export const fileService = {
     };
   },
 
+  fetchTrashFiles: async (): Promise<{
+    groupedByDate: Array<{
+      date: string;
+      files: FileItem[];
+      count: number;
+      totalSize: string;
+    }>;
+    stats: {
+      totalFiles: number;
+      totalSize: string;
+    };
+  }> => {
+    try {
+      const result = await axiosInstance.get("/files/trash");
+      const { groupedByDate, stats } = result.data.data;
+
+      // Transform the grouped data
+      const transformedGroups = groupedByDate.map((group: any) => ({
+        date: group.date,
+        count: group.count,
+        totalSize: formatFileSize(group.totalSize),
+        files: group.files.map((f: any) => ({
+          id: f._id,
+          name: f.name,
+          type: getFileType(f.extension) || "image",
+          size: formatFileSize(f.size),
+          thumbnail: f.url,
+          isStarred: f.isStarred || false,
+          deletedAt: f.deletedAt,
+          url: f.url,
+          parentFolderId: f.parentDirId,
+          date: timeAgo(f.createdAt),
+          path: f.path,
+          pathSegments: f.pathSegments,
+        })),
+      }));
+
+      return {
+        groupedByDate: transformedGroups,
+        stats: {
+          totalFiles: stats.totalFiles,
+          totalSize: formatFileSize(stats.totalSize),
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching trash files:", error);
+      throw new Error(
+        error.response?.data?.message || "Failed to fetch trash files",
+      );
+    }
+  },
+
+  emptyTrash: async (): Promise<void> => {
+    await axiosInstance.delete("/files/trash/empty");
+  },
+
   getPublicFile: async (fileId: string, token: string): Promise<FileItem> => {
-    await delay(800);
-    const file = mockDb.files.find((f) => f.id === fileId);
-    if (!file || file.deletedAt)
-      throw new Error("File not found or link expired.");
-    return file;
+    // Implement if needed
+    throw new Error("Not implemented");
   },
 
   sendInvite: async (fileId: string, emails: string[]): Promise<void> => {
-    await delay(1000);
-    if (shouldFail())
-      throw new Error("Failed to send invites. Please try again.");
+    // Implement if needed
+    throw new Error("Not implemented");
   },
 };

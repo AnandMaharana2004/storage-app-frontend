@@ -3,7 +3,6 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import { SidebarTab, FileItem, ViewMode } from "./types";
 import {
-  ChevronRight,
   LayoutGrid,
   List,
   FolderPlus,
@@ -61,6 +60,7 @@ const Dashboard: React.FC = () => {
     folders,
     uploads,
     breadcrumbs,
+    currentDirectory,
     isLoading,
     currentFolderId,
     error,
@@ -99,40 +99,46 @@ const Dashboard: React.FC = () => {
     }
   }, [location.pathname, setCurrentFolderId]);
 
-  // ✅ FIXED: Validate folder and redirect on error with proper URL cleanup
+  // ✅ Load folder contents when URL changes
   useEffect(() => {
-    const validateAndLoadFolder = async (folderId: string) => {
-      try {
-        setFolderValidationError(null);
+    const loadFolder = async () => {
+      const match = location.pathname.match(/^\/folder\/([^/]+)$/);
+
+      if (match) {
+        const folderId = match[1];
         setCurrentFolderId(folderId);
+        setFolderValidationError(null);
 
-        // ✅ Load folder contents (with caching)
-        const success = await loadFolderContents(folderId);
+        try {
+          const success = await loadFolderContents(folderId);
 
-        if (!success) {
-          throw new Error("Folder not found or inaccessible");
+          if (!success) {
+            throw new Error("Folder not found or inaccessible");
+          }
+        } catch (err: any) {
+          console.error("❌ Folder validation error:", err);
+          setFolderValidationError(
+            err.message || "Unable to access this folder",
+          );
+
+          // Redirect to home after showing error
+          setTimeout(() => {
+            navigate("/", { replace: true });
+            setFolderValidationError(null);
+          }, 2000);
         }
-      } catch (err: any) {
-        console.error("❌ Folder validation error:", err);
-        setFolderValidationError(err.message || "Unable to access this folder");
-
-        // ✅ FIXED: Clear folder ID and redirect immediately
+      } else if (
+        location.pathname === "/" ||
+        location.pathname === "/my-files"
+      ) {
+        // Load root directory
         setCurrentFolderId(null);
-        setTimeout(() => {
-          navigate("/", { replace: true });
-          setFolderValidationError(null);
-        }, 2000);
+        setFolderValidationError(null);
+        await loadFolderContents(null);
       }
     };
 
-    const match = location.pathname.match(/^\/folder\/([^/]+)$/);
-    if (match) {
-      const folderId = match[1];
-      validateAndLoadFolder(folderId);
-    } else if (location.pathname === "/" || location.pathname === "/my-files") {
-      setCurrentFolderId(null);
-      setFolderValidationError(null);
-    }
+    loadFolder();
   }, [location.pathname, setCurrentFolderId, navigate, loadFolderContents]);
 
   const handleTabChange = useCallback(
@@ -166,33 +172,23 @@ const Dashboard: React.FC = () => {
   const handleFolderClick = useCallback(
     async (folderId: string) => {
       setFolderValidationError(null);
-
-      // ✅ Pre-load folder contents before navigation
-      const success = await loadFolderContents(folderId);
-
-      if (success) {
-        navigate(`/folder/${folderId}`);
-      } else {
-        setFolderValidationError("Unable to access this folder");
-        setTimeout(() => setFolderValidationError(null), 3000);
-      }
+      navigate(`/folder/${folderId}`);
     },
-    [navigate, loadFolderContents],
+    [navigate],
   );
 
-  const handleNavigateUp = useCallback(() => {
-    if (!currentFolderId) return;
+  const handleBreadcrumbClick = useCallback(
+    (folderId: string | null) => {
+      setFolderValidationError(null);
 
-    const current = folders.find((f) => f.id === currentFolderId);
-    const parentId = current?.parentFolderId;
-
-    setFolderValidationError(null);
-    if (parentId && parentId !== user?.rootDir) {
-      navigate(`/folder/${parentId}`);
-    } else {
-      navigate("/");
-    }
-  }, [currentFolderId, folders, user?.rootDir, navigate]);
+      if (folderId) {
+        navigate(`/folder/${folderId}`);
+      } else {
+        navigate("/");
+      }
+    },
+    [navigate],
+  );
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -219,11 +215,12 @@ const Dashboard: React.FC = () => {
           <MyFilesView
             folders={folders}
             files={files}
+            breadcrumbs={breadcrumbs}
+            currentDirectory={currentDirectory}
             onPreview={setPreviewFile}
             onDropFiles={handleFilesDropped}
-            currentFolderId={currentFolderId}
             onFolderClick={handleFolderClick}
-            onNavigateUp={handleNavigateUp}
+            onBreadcrumbClick={handleBreadcrumbClick}
             viewMode={viewMode}
             onToggleStar={toggleStar}
             onMoveToTrash={moveToTrash}
@@ -331,67 +328,50 @@ const Dashboard: React.FC = () => {
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto w-full relative">
           <div className="max-w-7xl mx-auto w-full">
             <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-              {/* ✅ Enhanced breadcrumb navigation - now the primary navigation element */}
-              <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 overflow-hidden whitespace-nowrap text-ellipsis mr-2">
-                <span
-                  className="hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors shrink-0 font-medium"
-                  onClick={() => handleTabChange("my-files")}
-                >
-                  Home
-                </span>
+              {/* Page Title or Breadcrumbs */}
+              {activeTab === "my-files" ? (
+                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 overflow-x-auto">
+                  <span
+                    className="hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors shrink-0 font-medium text-lg"
+                    onClick={() => navigate("/")}
+                  >
+                    Home
+                  </span>
 
-                {activeTab !== "my-files" ? (
-                  <>
-                    <ChevronRight
-                      size={14}
-                      className="mx-2 shrink-0 text-slate-400"
-                    />
-                    <span className="font-semibold text-slate-900 dark:text-white capitalize truncate">
-                      {activeTab.replace(/-/g, " ")}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight
-                      size={14}
-                      className="mx-2 shrink-0 text-slate-400"
-                    />
-                    <span
-                      className={`transition-colors shrink-0 ${
-                        breadcrumbs.length === 0
-                          ? "font-semibold text-slate-900 dark:text-white"
-                          : "hover:text-slate-900 dark:hover:text-white cursor-pointer font-medium"
-                      }`}
-                      onClick={() => navigate("/")}
-                    >
-                      My Files
-                    </span>
-
-                    {breadcrumbs.map((folder, index) => (
-                      <React.Fragment key={folder.id}>
-                        <ChevronRight
-                          size={14}
-                          className="mx-2 shrink-0 text-slate-400"
-                        />
-                        <span
-                          className={`truncate max-w-[100px] sm:max-w-xs ${
-                            index === breadcrumbs.length - 1
-                              ? "font-semibold text-slate-900 dark:text-white"
-                              : "hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors font-medium"
-                          }`}
-                          onClick={() => {
-                            if (index !== breadcrumbs.length - 1) {
-                              navigate(`/folder/${folder.id}`);
-                            }
-                          }}
-                        >
-                          {folder.name}
-                        </span>
-                      </React.Fragment>
-                    ))}
-                  </>
-                )}
-              </div>
+                  {breadcrumbs.length > 1 && (
+                    <>
+                      {breadcrumbs.slice(1).map((crumb, index) => {
+                        const isLast = index === breadcrumbs.length - 2;
+                        return (
+                          <React.Fragment key={crumb.id}>
+                            <span className="mx-2 text-slate-400">/</span>
+                            <span
+                              className={`truncate max-w-[150px] ${
+                                isLast
+                                  ? "font-bold text-slate-900 dark:text-white text-lg"
+                                  : "hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors font-medium text-lg"
+                              }`}
+                              onClick={() => {
+                                if (!isLast) {
+                                  handleBreadcrumbClick(crumb.id);
+                                }
+                              }}
+                            >
+                              {crumb.name}
+                            </span>
+                          </React.Fragment>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
+                    {activeTab.replace(/-/g, " ")}
+                  </h1>
+                </div>
+              )}
 
               {activeTab !== "profile" &&
                 activeTab !== "admin" &&

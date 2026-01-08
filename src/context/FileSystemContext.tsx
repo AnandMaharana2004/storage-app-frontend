@@ -3,7 +3,6 @@ import React, {
   useContext,
   useState,
   ReactNode,
-  useEffect,
   useCallback,
 } from "react";
 import { FileItem, FolderItem, UploadItem } from "../types";
@@ -16,14 +15,31 @@ interface FileSystemContextType {
   uploads: UploadItem[];
   currentFolderId: string | null;
   breadcrumbs: FolderItem[];
+  currentDirectory: {
+    id: string;
+    name: string;
+    parentId: string | null;
+  } | null;
   isLoading: boolean;
   error: string | null;
   notification: string | null;
-  loadedFolders: Set<string>;
+  trashData: {
+    groupedByDate: Array<{
+      date: string;
+      files: FileItem[];
+      count: number;
+      totalSize: string;
+    }>;
+    stats: {
+      totalFiles: number;
+      totalSize: string;
+    };
+  } | null;
 
   setCurrentFolderId: (id: string | null) => void;
   navigateUp: () => void;
   refreshData: () => Promise<void>;
+  loadTrashFiles: () => Promise<void>;
   uploadFiles: (files: File[]) => void;
   createFolder: (name: string, parentFolderId: string) => void;
   renameFile: (fileId: string, newName: string) => Promise<void>;
@@ -31,11 +47,12 @@ interface FileSystemContextType {
   moveToTrash: (fileId: string) => void;
   restoreFromTrash: (fileId: string) => void;
   deleteForever: (fileId: string) => void;
+  emptyTrash: () => Promise<void>;
   closeUploadProgress: () => void;
   isUploadMinimized: boolean;
   toggleUploadMinimize: () => void;
   clearNotification: () => void;
-  loadFolderContents: (folderId: string) => Promise<boolean>;
+  loadFolderContents: (folderId: string | null) => Promise<boolean>;
 }
 
 const FileSystemContext = createContext<FileSystemContextType | undefined>(
@@ -45,13 +62,15 @@ const FileSystemContext = createContext<FileSystemContextType | undefined>(
 export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  // ✅ SIMPLIFIED: Single state for all folders and files
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<FolderItem[]>([]);
+  const [currentDirectory, setCurrentDirectory] = useState<{
+    id: string;
+    name: string;
+    parentId: string | null;
+  } | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-
-  // ✅ Track which folders have been loaded to avoid re-fetching
-  const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,40 +79,35 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [isUploadMinimized, setIsUploadMinimized] = useState(false);
 
+  const [trashData, setTrashData] = useState<{
+    groupedByDate: Array<{
+      date: string;
+      files: FileItem[];
+      count: number;
+      totalSize: string;
+    }>;
+    stats: {
+      totalFiles: number;
+      totalSize: string;
+    };
+  } | null>(null);
+
   const { user } = useUser();
 
-  // ✅ OPTIMIZED: Load folder contents and merge into existing state
+  // ✅ Load folder contents from backend - includes breadcrumbs
   const loadFolderContents = useCallback(
-    async (folderId: string): Promise<boolean> => {
-      const folderKey = folderId || "root";
-
-      // Check if already loaded
-      if (loadedFolders.has(folderKey)) {
-        return true;
-      }
-
+    async (folderId: string | null): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const data = await api.fetchFileSystem(folderId || user?.rootDir);
+        const data = await api.fetchFileSystem(folderId);
 
-        // ✅ MERGE new folders into existing state (avoid duplicates)
-        setFolders((prev) => {
-          const existingIds = new Set(prev.map((f) => f.id));
-          const newFolders = data.folders.filter((f) => !existingIds.has(f.id));
-          return [...prev, ...newFolders];
-        });
-
-        // ✅ MERGE new files into existing state (avoid duplicates)
-        setFiles((prev) => {
-          const existingIds = new Set(prev.map((f) => f.id));
-          const newFiles = data.files.filter((f) => !existingIds.has(f.id));
-          return [...prev, ...newFiles];
-        });
-
-        // Mark this folder as loaded
-        setLoadedFolders((prev) => new Set(prev).add(folderKey));
+        // ✅ Set data directly from backend response
+        setFolders(data.folders);
+        setFiles(data.files);
+        setBreadcrumbs(data.breadcrumbs);
+        setCurrentDirectory(data.currentDirectory);
 
         return true;
       } catch (err: any) {
@@ -104,58 +118,36 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
         setIsLoading(false);
       }
     },
-    [loadedFolders, user?.rootDir],
+    [],
   );
 
-  // ✅ Refresh current folder (re-fetch)
+  // ✅ Load trash files from backend
+  const loadTrashFiles = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await api.fetchTrashFiles();
+      setTrashData(data);
+    } catch (err: any) {
+      console.error("❌ Error loading trash:", err);
+      setError(err.message || "Failed to load trash files");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // ✅ Refresh current folder
   const refreshData = useCallback(async () => {
-    if (!user) return;
-
-    const targetId = currentFolderId || user.rootDir;
-    const folderKey = targetId || "root";
-
-    // Remove from loaded set to force re-fetch
-    setLoadedFolders((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(folderKey);
-      return newSet;
-    });
-
-    await loadFolderContents(targetId);
-  }, [currentFolderId, user, loadFolderContents]);
-
-  // ✅ Load initial root data only once
-  useEffect(() => {
-    if (user && !currentFolderId && !loadedFolders.has("root")) {
-      loadFolderContents(user.rootDir);
-    }
-  }, [user, currentFolderId, loadedFolders, loadFolderContents]);
-
-  // --- Navigation Helpers ---
-  const getBreadcrumbs = useCallback(() => {
-    if (!currentFolderId) return [];
-
-    const path: FolderItem[] = [];
-    let current = folders.find((f) => f.id === currentFolderId);
-    let safety = 0;
-
-    while (current && safety < 50) {
-      path.unshift(current);
-      if (current.parentFolderId) {
-        current = folders.find((f) => f.id === current!.parentFolderId);
-      } else {
-        current = undefined;
-      }
-      safety++;
-    }
-
-    return path;
-  }, [currentFolderId, folders]);
+    await loadFolderContents(currentFolderId);
+  }, [currentFolderId, loadFolderContents]);
 
   const navigateUp = () => {
-    if (!currentFolderId) return;
-    const current = folders.find((f) => f.id === currentFolderId);
-    setCurrentFolderId(current?.parentFolderId || null);
+    if (currentDirectory?.parentId) {
+      setCurrentFolderId(currentDirectory.parentId);
+    } else {
+      setCurrentFolderId(null);
+    }
   };
 
   // --- Actions ---
@@ -204,18 +196,8 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
         prev.map((f) => (f.id === fileId ? { ...f, deletedAt } : f)),
       );
 
-      const file = files.find((f) => f.id === fileId);
-      if (file?.parentFolderId) {
-        setFolders((prev) =>
-          prev.map((folder) =>
-            folder.id === file.parentFolderId
-              ? { ...folder, itemCount: Math.max(0, folder.itemCount - 1) }
-              : folder,
-          ),
-        );
-      }
-
       setNotification("File moved to trash");
+      await refreshData(); // Refresh to update folder counts
     } catch (err: any) {
       setError(err.message || "Failed to move file to trash");
     }
@@ -225,19 +207,21 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
     try {
       await api.restoreFromTrash(fileId);
 
-      setFiles((prev) =>
-        prev.map((f) => (f.id === fileId ? { ...f, deletedAt: null } : f)),
-      );
-
-      const file = files.find((f) => f.id === fileId);
-      if (file?.parentFolderId) {
-        setFolders((prev) =>
-          prev.map((folder) =>
-            folder.id === file.parentFolderId
-              ? { ...folder, itemCount: folder.itemCount + 1 }
-              : folder,
-          ),
-        );
+      // Remove from trash data if loaded
+      if (trashData) {
+        setTrashData({
+          ...trashData,
+          groupedByDate: trashData.groupedByDate
+            .map((group) => ({
+              ...group,
+              files: group.files.filter((f) => f.id !== fileId),
+            }))
+            .filter((group) => group.files.length > 0),
+          stats: {
+            totalFiles: trashData.stats.totalFiles - 1,
+            totalSize: trashData.stats.totalSize,
+          },
+        });
       }
 
       setNotification("File restored");
@@ -250,8 +234,22 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
     try {
       await api.deleteForever(fileId);
 
-      // Remove file from state completely
-      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+      // Remove from trash data if loaded
+      if (trashData) {
+        setTrashData({
+          ...trashData,
+          groupedByDate: trashData.groupedByDate
+            .map((group) => ({
+              ...group,
+              files: group.files.filter((f) => f.id !== fileId),
+            }))
+            .filter((group) => group.files.length > 0),
+          stats: {
+            totalFiles: trashData.stats.totalFiles - 1,
+            totalSize: trashData.stats.totalSize,
+          },
+        });
+      }
 
       setNotification("File permanently deleted");
     } catch (err: any) {
@@ -259,25 +257,29 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const emptyTrash = async () => {
+    try {
+      await api.emptyTrash();
+
+      // Clear trash data
+      setTrashData({
+        groupedByDate: [],
+        stats: { totalFiles: 0, totalSize: "0 B" },
+      });
+
+      setNotification("Trash emptied successfully");
+    } catch (err: any) {
+      setError(err.message || "Failed to empty trash");
+    }
+  };
+
   const createFolder = async (name: string, parentFolderId: string) => {
     try {
       const newFolder = await api.createFolder(name, parentFolderId);
 
-      // ✅ Add new folder to state with parent ID
       setFolders((prev) => [...prev, newFolder]);
-
-      // Update parent folder item count
-      if (parentFolderId) {
-        setFolders((prev) =>
-          prev.map((folder) =>
-            folder.id === parentFolderId
-              ? { ...folder, itemCount: folder.itemCount + 1 }
-              : folder,
-          ),
-        );
-      }
-
       setNotification(`Folder "${name}" created`);
+      await refreshData(); // Refresh to update folder counts
     } catch (err: any) {
       setError(err.message || "Failed to create folder");
     }
@@ -323,27 +325,14 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
 
           const completedFile = await api.completeUpload(fileKey, fileId);
 
-          // ✅ Add new file to state with parent ID
           setFiles((currentFiles) => {
             const exists = currentFiles.some((f) => f.id === completedFile.id);
             if (exists) {
               console.warn("⚠️ File already exists, skipping add");
               return currentFiles;
             }
-
             return [completedFile, ...currentFiles];
           });
-
-          // Update folder item count
-          if (targetFolderId) {
-            setFolders((prev) =>
-              prev.map((folder) =>
-                folder.id === targetFolderId
-                  ? { ...folder, itemCount: folder.itemCount + 1 }
-                  : folder,
-              ),
-            );
-          }
 
           setUploads((prev) =>
             prev.map((u) =>
@@ -352,6 +341,9 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
                 : u,
             ),
           );
+
+          // Refresh to update folder counts
+          await refreshData();
         } catch (err: any) {
           setUploads((prev) =>
             prev.map((u) =>
@@ -362,7 +354,7 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
         }
       });
     },
-    [currentFolderId, user],
+    [currentFolderId, user, refreshData],
   );
 
   const closeUploadProgress = () => setUploads([]);
@@ -372,29 +364,6 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
   };
 
-  // Auto-close completed uploads
-  useEffect(() => {
-    if (uploads.length === 0) return;
-    const allFinished = uploads.every(
-      (u) => u.status === "completed" || u.status === "error",
-    );
-    if (allFinished) {
-      const timer = setTimeout(() => setUploads([]), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [uploads]);
-
-  // Auto-clear notifications
-  useEffect(() => {
-    if (notification || error) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-        setError(null);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification, error]);
-
   return (
     <FileSystemContext.Provider
       value={{
@@ -402,12 +371,14 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
         files,
         uploads,
         currentFolderId,
-        breadcrumbs: getBreadcrumbs(),
+        breadcrumbs,
+        currentDirectory,
         isLoading,
         error,
         notification,
-        loadedFolders,
+        trashData,
         refreshData,
+        loadTrashFiles,
         setCurrentFolderId,
         navigateUp,
         renameFile,
@@ -417,6 +388,7 @@ export const FileSystemProvider: React.FC<{ children: ReactNode }> = ({
         moveToTrash,
         restoreFromTrash,
         deleteForever,
+        emptyTrash,
         closeUploadProgress,
         isUploadMinimized,
         toggleUploadMinimize,
