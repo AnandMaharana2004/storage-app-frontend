@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import {
   FileText,
-  Image as ImageIcon,
+  Image,
   FileCode,
   Archive,
   Film,
@@ -14,9 +14,30 @@ import {
   Edit2,
   Music,
   File,
+  MapPin,
 } from "lucide-react";
-import { FileItem } from "../types";
-import { api } from "../services/api";
+import { defaultAllowedOrigins } from "vite";
+
+// Mock types for demonstration
+interface FileItem {
+  id: string;
+  name: string;
+  type:
+    | "image"
+    | "pdf"
+    | "code"
+    | "archive"
+    | "video"
+    | "doc"
+    | "audio"
+    | "other";
+  size: string;
+  date: string;
+  thumbnail?: string;
+  isStarred?: boolean;
+  deletedAt?: string;
+  sharedBy?: string;
+}
 
 interface FileCardProps {
   file: FileItem;
@@ -27,13 +48,14 @@ interface FileCardProps {
   onDeleteForever?: (id: string) => void;
   onShare?: (file: FileItem) => void;
   onRename?: (file: FileItem) => void;
+  path?: string; // NEW: Optional path prop for trash view
 }
 
 export const FileIcon = ({ type }: { type: FileItem["type"] }) => {
   switch (type) {
     case "image":
       return (
-        <ImageIcon size={24} className="text-purple-500 dark:text-purple-400" />
+        <Image size={24} className="text-purple-500 dark:text-purple-400" />
       );
     case "pdf":
       return <FileText size={24} className="text-red-500 dark:text-red-400" />;
@@ -71,14 +93,13 @@ const FileCard: React.FC<FileCardProps> = ({
   onDeleteForever,
   onShare,
   onRename,
+  path, // NEW: Receive path prop
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState<"top" | "bottom">("bottom");
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const isTrashItem = !!file.deletedAt;
-
-  // Determine if we should show thumbnail or icon
   const shouldShowThumbnail = file.type === "image" && file.thumbnail;
 
   const handleMenuAction = (action: () => void) => {
@@ -88,32 +109,23 @@ const FileCard: React.FC<FileCardProps> = ({
 
   const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
-
     if (!showMenu && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       setMenuPosition(spaceBelow < 220 ? "top" : "bottom");
     }
-
     setShowMenu(!showMenu);
   };
 
   const downloadHandler = async () => {
-    try {
-      const { downloadUrl, fileName } = await api.downloadFile(file.id);
+    alert("Download functionality - implement with your API");
+  };
 
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = fileName || file.name;
-      link.rel = "noopener";
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Download failed:", error);
-      alert("Failed to download file. Please try again.");
-    }
+  // Format path for display
+  const formatPath = (filePath: string) => {
+    return (
+      filePath.replace(/^\//, "").split("/").slice(1).join(" > ") || "Root"
+    );
   };
 
   return (
@@ -129,7 +141,7 @@ const FileCard: React.FC<FileCardProps> = ({
       )}
 
       <div
-        className="group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col cursor-pointer hover:border-brand-200 dark:hover:border-brand-700"
+        className="group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-700"
         onClick={onPreview}
       >
         <div className="h-32 bg-slate-50 dark:bg-slate-800 relative flex items-center justify-center overflow-hidden rounded-t-xl transition-colors">
@@ -155,7 +167,7 @@ const FileCard: React.FC<FileCardProps> = ({
                   e.stopPropagation();
                   downloadHandler();
                 }}
-                className="p-2 bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 rounded-full hover:bg-white hover:text-brand-600 dark:hover:bg-slate-700 dark:hover:text-brand-400 transition-colors"
+                className="p-2 bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 rounded-full hover:bg-white hover:text-indigo-600 dark:hover:bg-slate-700 dark:hover:text-indigo-400 transition-colors"
                 title="Download"
               >
                 <Download size={16} />
@@ -166,7 +178,7 @@ const FileCard: React.FC<FileCardProps> = ({
                     e.stopPropagation();
                     onShare(file);
                   }}
-                  className="p-2 bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 rounded-full hover:bg-white hover:text-brand-600 dark:hover:bg-slate-700 dark:hover:text-brand-400 transition-colors"
+                  className="p-2 bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 rounded-full hover:bg-white hover:text-indigo-600 dark:hover:bg-slate-700 dark:hover:text-indigo-400 transition-colors"
                   title="Share"
                 >
                   <Share2 size={16} />
@@ -198,8 +210,19 @@ const FileCard: React.FC<FileCardProps> = ({
                 <span className="mx-1">•</span>
                 <span>{file.date}</span>
               </div>
+
+              {/* NEW: Show path inside card if provided */}
+              {path && (
+                <div className="mt-2 flex items-start text-xs text-slate-500 dark:text-slate-400">
+                  <MapPin size={11} className="mr-1 mt-0.5 shrink-0" />
+                  <span className="line-clamp-1" title={path}>
+                    {formatPath(path)}
+                  </span>
+                </div>
+              )}
+
               {file.sharedBy && !file.deletedAt && (
-                <p className="text-[10px] text-brand-600 dark:text-brand-400 mt-1 font-medium flex items-center">
+                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1 font-medium flex items-center">
                   Shared by {file.sharedBy}
                 </p>
               )}
@@ -230,7 +253,7 @@ const FileCard: React.FC<FileCardProps> = ({
                   {!isTrashItem ? (
                     <>
                       <button
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-brand-600 flex items-center transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 flex items-center transition-colors"
                         onClick={() => handleMenuAction(downloadHandler)}
                       >
                         <Download size={16} className="mr-2" />
@@ -238,7 +261,7 @@ const FileCard: React.FC<FileCardProps> = ({
                       </button>
                       {onShare && (
                         <button
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-brand-600 dark:hover:bg-slate-700 flex items-center transition-colors"
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 flex items-center transition-colors"
                           onClick={() => handleMenuAction(() => onShare(file))}
                         >
                           <Share2 size={16} className="mr-2" />
@@ -247,7 +270,7 @@ const FileCard: React.FC<FileCardProps> = ({
                       )}
                       {onRename && (
                         <button
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-brand-600 dark:hover:bg-slate-700 flex items-center transition-colors"
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 flex items-center transition-colors"
                           onClick={() => handleMenuAction(() => onRename(file))}
                         >
                           <Edit2 size={16} className="mr-2" />
@@ -256,7 +279,7 @@ const FileCard: React.FC<FileCardProps> = ({
                       )}
                       {onToggleStar && (
                         <button
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-brand-600 dark:hover:bg-slate-700 flex items-center transition-colors"
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 flex items-center transition-colors"
                           onClick={() =>
                             handleMenuAction(() => onToggleStar(file.id))
                           }

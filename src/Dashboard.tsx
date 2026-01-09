@@ -9,6 +9,14 @@ import {
   CheckCircle,
   AlertCircle,
   X,
+  Home,
+  Clock,
+  Star,
+  Users,
+  Trash2,
+  User,
+  Shield,
+  ChevronRight,
 } from "lucide-react";
 import { useFileSystem } from "./context/FileSystemContext";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -87,6 +95,7 @@ const Dashboard: React.FC = () => {
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const breadcrumbsRef = useRef<HTMLDivElement>(null);
 
   // Sync tab with route changes
   useEffect(() => {
@@ -140,6 +149,13 @@ const Dashboard: React.FC = () => {
 
     loadFolder();
   }, [location.pathname, setCurrentFolderId, navigate, loadFolderContents]);
+
+  // ✅ Auto-scroll breadcrumbs to show the current folder
+  useEffect(() => {
+    if (breadcrumbsRef.current && breadcrumbs.length > 0) {
+      breadcrumbsRef.current.scrollLeft = breadcrumbsRef.current.scrollWidth;
+    }
+  }, [breadcrumbs]);
 
   const handleTabChange = useCallback(
     (tab: SidebarTab) => {
@@ -323,51 +339,133 @@ const Dashboard: React.FC = () => {
             activeTab !== "admin" &&
             activeTab !== "admin-user-details"
           }
+          currentPath={location.pathname}
         />
 
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto w-full relative">
           <div className="max-w-7xl mx-auto w-full">
-            <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+            <div className="mb-6 flex items-center justify-between gap-4">
               {/* Page Title or Breadcrumbs */}
               {activeTab === "my-files" ? (
-                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300 overflow-x-auto">
-                  <span
-                    className="hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors shrink-0 font-medium text-lg"
-                    onClick={() => navigate("/")}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-md border border-blue-100 dark:border-blue-500/20 shrink-0">
+                    <Home
+                      size={20}
+                      className="text-blue-600 dark:text-blue-400"
+                    />
+                  </div>
+                  <div
+                    ref={breadcrumbsRef}
+                    className="flex items-center text-sm text-slate-600 dark:text-slate-300 overflow-x-auto min-w-0 scroll-smooth"
+                    style={{
+                      scrollbarWidth: "none",
+                      msOverflowStyle: "none",
+                    }}
                   >
-                    Home
-                  </span>
+                    <style>
+                      {`
+                        div::-webkit-scrollbar {
+                          display: none;
+                        }
+                      `}
+                    </style>
+                    <span
+                      className="hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors shrink-0 font-medium"
+                      onClick={() => navigate("/")}
+                    >
+                      Home
+                    </span>
 
-                  {breadcrumbs.length > 1 && (
-                    <>
-                      {breadcrumbs.slice(1).map((crumb, index) => {
-                        const isLast = index === breadcrumbs.length - 2;
-                        return (
-                          <React.Fragment key={crumb.id}>
-                            <span className="mx-2 text-slate-400">/</span>
-                            <span
-                              className={`truncate max-w-[150px] ${
-                                isLast
-                                  ? "font-bold text-slate-900 dark:text-white text-lg"
-                                  : "hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors font-medium text-lg"
-                              }`}
-                              onClick={() => {
-                                if (!isLast) {
-                                  handleBreadcrumbClick(crumb.id);
-                                }
-                              }}
-                            >
-                              {crumb.name}
-                            </span>
-                          </React.Fragment>
-                        );
-                      })}
-                    </>
-                  )}
+                    {breadcrumbs.length > 1 && (
+                      <>
+                        {breadcrumbs.slice(1).map((crumb, index) => {
+                          const isLast = index === breadcrumbs.length - 2;
+                          return (
+                            <React.Fragment key={crumb.id}>
+                              <ChevronRight
+                                size={16}
+                                className="mx-1 text-slate-400 shrink-0"
+                              />
+                              <span
+                                className={`truncate max-w-[150px] font-medium shrink-0 ${
+                                  isLast
+                                    ? "text-slate-900 dark:text-white"
+                                    : "hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+                                }`}
+                                onClick={() => {
+                                  if (!isLast) {
+                                    handleBreadcrumbClick(crumb.id);
+                                  }
+                                }}
+                              >
+                                {crumb.name}
+                              </span>
+                            </React.Fragment>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center text-sm text-slate-600 dark:text-slate-300">
-                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-2 rounded-md border ${
+                      activeTab === "recent"
+                        ? "bg-purple-50 dark:bg-purple-500/10 border-purple-100 dark:border-purple-500/20"
+                        : activeTab === "starred"
+                          ? "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-100 dark:border-yellow-500/20"
+                          : activeTab === "shared"
+                            ? "bg-green-50 dark:bg-green-500/10 border-green-100 dark:border-green-500/20"
+                            : activeTab === "trash"
+                              ? "bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20"
+                              : activeTab === "profile"
+                                ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20"
+                                : activeTab === "admin" ||
+                                    activeTab === "admin-user-details"
+                                  ? "bg-orange-50 dark:bg-orange-500/10 border-orange-100 dark:border-orange-500/20"
+                                  : "bg-slate-50 dark:bg-slate-500/10 border-slate-100 dark:border-slate-500/20"
+                    }`}
+                  >
+                    {activeTab === "recent" ? (
+                      <Clock
+                        size={20}
+                        className="text-purple-600 dark:text-purple-400"
+                      />
+                    ) : activeTab === "starred" ? (
+                      <Star
+                        size={20}
+                        className="text-yellow-600 dark:text-yellow-400"
+                      />
+                    ) : activeTab === "shared" ? (
+                      <Users
+                        size={20}
+                        className="text-green-600 dark:text-green-400"
+                      />
+                    ) : activeTab === "trash" ? (
+                      <Trash2
+                        size={20}
+                        className="text-red-600 dark:text-red-400"
+                      />
+                    ) : activeTab === "profile" ? (
+                      <User
+                        size={20}
+                        className="text-indigo-600 dark:text-indigo-400"
+                      />
+                    ) : activeTab === "admin" ||
+                      activeTab === "admin-user-details" ? (
+                      <Shield
+                        size={20}
+                        className="text-orange-600 dark:text-orange-400"
+                      />
+                    ) : (
+                      <Home
+                        size={20}
+                        className="text-slate-600 dark:text-slate-400"
+                      />
+                    )}
+                  </div>
+                  <h1 className="text-md font-medium text-slate-900 dark:text-white capitalize">
                     {activeTab.replace(/-/g, " ")}
                   </h1>
                 </div>
@@ -376,7 +474,7 @@ const Dashboard: React.FC = () => {
               {activeTab !== "profile" &&
                 activeTab !== "admin" &&
                 activeTab !== "admin-user-details" && (
-                  <div className="flex items-center gap-2 ml-auto shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {activeTab === "my-files" && (
                       <>
                         <button

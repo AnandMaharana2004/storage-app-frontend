@@ -100,27 +100,13 @@ const TrashView: React.FC<TrashViewProps> = ({
                 {group.files.map((file) => (
                   <div key={file.id} className="relative">
                     <FileCard
+                      key={file.id}
                       file={file}
+                      path={(file as any).path} // Pass path as prop
                       onPreview={() => onPreview(file)}
                       onRestore={onRestore}
                       onDeleteForever={onDeleteForever}
                     />
-                    {/* Show file path */}
-                    {(file as any).path && (
-                      <div className="mt-2 flex items-start text-xs text-slate-500 dark:text-slate-400">
-                        <MapPin size={12} className="mr-1 mt-0.5 shrink-0" />
-                        <span
-                          className="line-clamp-1"
-                          title={(file as any).path}
-                        >
-                          {(file as any).path
-                            .replace(/^\//, "")
-                            .split("/")
-                            .slice(1)
-                            .join(" > ") || "Root"}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -136,17 +122,7 @@ const TrashView: React.FC<TrashViewProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">
-          <div
-            className="p-2 rounded-lg mr-3
-                       bg-red-100 text-red-600
-                       dark:bg-red-900/30 dark:text-red-400"
-          >
-            <Trash2 size={24} />
-          </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-              Trash
-            </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {trashData && trashData.stats.totalFiles > 0
                 ? `${trashData.stats.totalFiles} ${trashData.stats.totalFiles === 1 ? "item" : "items"} · ${trashData.stats.totalSize}`
@@ -159,26 +135,29 @@ const TrashView: React.FC<TrashViewProps> = ({
       {/* Warning Banner – only when trash has files */}
       {!isLoading && trashData && trashData.stats.totalFiles > 0 && (
         <div
-          className="flex items-start p-4 mb-6 rounded-xl border
-                     bg-orange-50 border-orange-100
-                     dark:bg-orange-900/20 dark:border-orange-900/40"
+          className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 mb-6 rounded-xl border
+               bg-orange-50 border-orange-100
+               dark:bg-orange-900/20 dark:border-orange-900/40"
         >
-          <AlertTriangle
-            size={18}
-            className="mr-3 mt-0.5 shrink-0
-                       text-orange-500 dark:text-orange-400"
-          />
-          <p className="text-sm text-orange-800 dark:text-orange-300 flex-1">
-            You can restore files from here. Emptying trash will permanently
-            delete these items.
-          </p>
+          <div className="flex items-start flex-1 min-w-0">
+            <AlertTriangle
+              size={18}
+              className="mr-3 mt-0.5 shrink-0 text-orange-500 dark:text-orange-400"
+            />
+            <p className="text-sm text-orange-800 dark:text-orange-300">
+              You can restore files from here. Emptying trash will permanently
+              delete these items.
+            </p>
+          </div>
+
           <button
             onClick={() => setShowEmptyConfirm(true)}
-            className="ml-auto text-sm font-semibold whitespace-nowrap
-                       text-orange-700 hover:text-orange-900
-                       dark:text-orange-400 dark:hover:text-orange-300
-                       transition-colors"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold
+             bg-orange-600 hover:bg-orange-700 text-white
+             dark:bg-orange-500 dark:hover:bg-orange-600
+             transition-colors whitespace-nowrap"
           >
+            <Trash2 size={16} className="inline mr-2 -mt-0.5" />
             Empty Trash
           </button>
         </div>
