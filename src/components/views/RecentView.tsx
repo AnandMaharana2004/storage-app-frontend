@@ -69,12 +69,7 @@ const RecentView: React.FC<RecentViewProps> = ({
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <h2 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">
-        Recent Activity
-      </h2>
-      {renderContent()}
-    </div>
+    <div className="animate-in fade-in duration-500">{renderContent()}</div>
   );
 };
 

@@ -90,23 +90,7 @@ const SharedView: React.FC<SharedViewProps> = ({
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex items-center mb-6">
-        <div
-          className="p-2 rounded-lg mr-3
-                     bg-blue-100 text-brand-600
-                     dark:bg-blue-900/30 dark:text-blue-400"
-        >
-          <Users size={24} />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-          Shared with me
-        </h2>
-      </div>
-
-      {renderContent()}
-    </div>
+    <div className="animate-in fade-in duration-500">{renderContent()}</div>
   );
 };
 

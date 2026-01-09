@@ -90,23 +90,7 @@ const StarredView: React.FC<StarredViewProps> = ({
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex items-center mb-6">
-        <div
-          className="p-2 rounded-lg mr-3
-                     bg-yellow-100 text-yellow-600
-                     dark:bg-yellow-900/30 dark:text-yellow-400"
-        >
-          <Star size={24} className="fill-current" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-          Starred Files
-        </h2>
-      </div>
-
-      {renderContent()}
-    </div>
+    <div className="animate-in fade-in duration-500">{renderContent()}</div>
   );
 };
 
