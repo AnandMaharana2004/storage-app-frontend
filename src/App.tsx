@@ -107,10 +107,9 @@ const AppRoutes = () => {
           </PublicRoute>
         }
       />
-
       {/* Public Shared Link Route */}
-      <Route path="/s/:fileId/:token" element={<PublicFileView />} />
-
+      <Route path="/shares/:token" element={<PublicFileView />} />{" "}
+      //http://local.devzoon.xyz/shares/o6DrXKdW21Kb
       {/* Protected Admin Routes */}
       <Route
         path="/admin"
@@ -132,7 +131,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       {/* Protected User Routes */}
       <Route
         path="/"
@@ -182,7 +180,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/folder/:folderId"
         element={

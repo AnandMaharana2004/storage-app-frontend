@@ -1,204 +1,175 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  X,
-  Mail,
-  Link,
-  Copy,
-  Check,
-  Clock,
-  Globe,
-  Users,
-  User as UserIcon,
-  Loader2,
-  SearchX,
-} from "lucide-react";
-import { FileItem } from "../types";
-import { api } from "../services/api";
+import React, { useState, useEffect } from "react";
+import { X, Link, Copy, Check, Loader2 } from "lucide-react";
+import axiosInstance from "../services/axios";
+
+// Base file without public sharing
+interface PrivateFile {
+  id: string;
+  name: string;
+  isPublic?: false;
+  publicUrl?: never;
+}
+
+// File with public sharing - both fields are required
+interface PublicFile {
+  id: string;
+  name: string;
+  isPublic: true;
+  publicUrl: string;
+}
+
+// Union type ensures type safety
+type FileItem = PrivateFile | PublicFile;
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   file: FileItem | null;
+  onShareUpdate?: (file: FileItem) => void; // Callback to update parent component
 }
 
-interface SelectedPerson {
-  email: string;
-  name?: string;
-  avatar?: string;
-}
-
-const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, file }) => {
-  const [activeTab, setActiveTab] = useState<"invite" | "link">("invite");
-
-  // Invite State
-  const [query, setQuery] = useState("");
-  const [selectedPeople, setSelectedPeople] = useState<SelectedPerson[]>([]);
-  const [suggestions, setSuggestions] = useState<SelectedPerson[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Link State
-  const [expiration, setExpiration] = useState("60"); // Default 60 minutes
+const ShareModal: React.FC<ShareModalProps> = ({
+  isOpen,
+  onClose,
+  file,
+  onShareUpdate,
+}) => {
   const [isPublicLinkEnabled, setIsPublicLinkEnabled] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  // Sending State
-  const [isSending, setIsSending] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [shareLink, setShareLink] = useState("");
+  const [isToggling, setIsToggling] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && file) {
       document.body.style.overflow = "hidden";
-      // Reset state on open
-      setActiveTab("invite");
-      setQuery("");
-      setSelectedPeople([]);
-      setSuggestions([]);
-      setExpiration("60");
-      setIsPublicLinkEnabled(false);
+
+      // Fetch current sharing status from API
+      const fetchShareStatus = async () => {
+        setIsLoading(true);
+        try {
+          const response = await axiosInstance.get("/share/public/exist", {
+            params: { fileId: file.id },
+          });
+
+          // If response is 200, share link exists
+          if (response.status === 200 && response.data?.data?.url) {
+            setIsPublicLinkEnabled(true);
+            setShareLink(response.data.data.url);
+          }
+        } catch (error: any) {
+          // If 404, no share link exists
+          if (error.response?.status === 404) {
+            setIsPublicLinkEnabled(false);
+            setShareLink("");
+          } else {
+            console.error("Failed to fetch share status:", error);
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchShareStatus();
       setCopied(false);
-      setShowSuccess(false);
     }
+
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isOpen]);
-
-  // Click outside handler for dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // API Search with Debounce
-  useEffect(() => {
-    if (!query) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    const search = async () => {
-      setIsSearching(true);
-      try {
-        const results = await api.searchPeople(query);
-        // Filter out already selected people
-        const filtered = results.filter(
-          (contact) => !selectedPeople.some((p) => p.email === contact.email),
-        );
-        setSuggestions(filtered);
-        setShowSuggestions(true);
-      } catch (error) {
-        console.error("Search failed:", error);
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(search, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [query, selectedPeople]);
+  }, [isOpen, file]);
 
   if (!isOpen || !file) return null;
 
-  const handleCopyLink = () => {
-    const link = `https://cloudzoon.com/s/${file.id}/${Math.random().toString(36).substr(2, 5)}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopyLink = async () => {
+    if (!shareLink) return;
 
-  const handleSendInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedPeople.length === 0 && !query.trim()) return;
-
-    // Prepare emails list
-    const emailsToSend = selectedPeople.map((p) => p.email);
-
-    // Add current query if it looks like an email and isn't empty
-    if (query.trim() && query.includes("@")) {
-      emailsToSend.push(query.trim());
-    }
-
-    if (emailsToSend.length === 0) return;
-
-    setIsSending(true);
     try {
-      await api.sendInvite(file.id, emailsToSend);
-      setIsSending(false);
-      setShowSuccess(true);
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-      setIsSending(false);
-      // Could handle error display here
-    }
-  };
+      // Modern clipboard API (preferred)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement("textarea");
+        textArea.value = shareLink;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
 
-  const handleAddPerson = (person: SelectedPerson) => {
-    if (!selectedPeople.some((p) => p.email === person.email)) {
-      setSelectedPeople([...selectedPeople, person]);
-    }
-    setQuery("");
-    setShowSuggestions(false);
-  };
-
-  const handleRemovePerson = (email: string) => {
-    setSelectedPeople(selectedPeople.filter((p) => p.email !== email));
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (query.trim()) {
-        // Treat as raw email
-        handleAddPerson({ email: query.trim(), name: query.trim() });
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          } else {
+            throw new Error("Copy command failed");
+          }
+        } finally {
+          document.body.removeChild(textArea);
+        }
       }
-    } else if (e.key === "Backspace" && !query && selectedPeople.length > 0) {
-      // Remove last item
-      const newPeople = [...selectedPeople];
-      newPeople.pop();
-      setSelectedPeople(newPeople);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      // Show error feedback to user
+      alert("Failed to copy link. Please try selecting and copying manually.");
     }
   };
 
-  const ExpirationSelect = () => (
-    <div className="mt-4">
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase mb-1.5">
-        Access Expires In (Minutes)
-      </label>
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Clock size={16} className="text-slate-400" />
-        </div>
-        <select
-          value={expiration}
-          onChange={(e) => setExpiration(e.target.value)}
-          className="block w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors appearance-none"
-        >
-          <option value="15">15 Minutes</option>
-          <option value="30">30 Minutes</option>
-          <option value="60">1 Hour</option>
-          <option value="360">6 Hours</option>
-          <option value="1440">24 Hours</option>
-          <option value="10080">7 Days</option>
-          <option value="-1">Never (Permanent)</option>
-        </select>
-      </div>
-    </div>
-  );
+  const handleTogglePublicLink = async () => {
+    if (!file) return;
+
+    setIsToggling(true);
+
+    try {
+      if (isPublicLinkEnabled) {
+        // Disable public sharing
+        await axiosInstance.delete(`/share/public/${file.id}`);
+
+        // Update local state
+        setIsPublicLinkEnabled(false);
+        setShareLink("");
+
+        // Update parent component
+        if (onShareUpdate) {
+          onShareUpdate({
+            ...file,
+            isPublic: false,
+            publicUrl: undefined,
+          } as FileItem);
+        }
+      } else {
+        // Enable public sharing
+        const result = await axiosInstance.post("/share/public", {
+          fileId: file.id,
+        });
+
+        const { url } = result.data.data;
+
+        // Update local state
+        setIsPublicLinkEnabled(true);
+        setShareLink(url);
+
+        // Update parent component
+        if (onShareUpdate) {
+          onShareUpdate({
+            ...file,
+            isPublic: true,
+            publicUrl: url,
+          } as FileItem);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to toggle public link:", error);
+      alert("Failed to update sharing settings. Please try again.");
+    } finally {
+      setIsToggling(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -221,220 +192,51 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, file }) => {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100 dark:border-slate-800 shrink-0">
-          <button
-            onClick={() => setActiveTab("invite")}
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors flex items-center justify-center ${
-              activeTab === "invite"
-                ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            <Users size={16} className="mr-2" />
-            Invite People
-          </button>
-          <button
-            onClick={() => setActiveTab("link")}
-            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors flex items-center justify-center ${
-              activeTab === "link"
-                ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
-          >
-            <Globe size={16} className="mr-2" />
-            Public Link
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-visible">
-          {showSuccess ? (
-            <div className="flex flex-col items-center justify-center py-8 animate-in fade-in slide-in-from-bottom-2">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600 dark:text-green-400 mb-3">
-                <Check size={24} />
-              </div>
-              <p className="text-slate-800 dark:text-white font-medium">
-                Invites Sent!
-              </p>
-            </div>
-          ) : activeTab === "invite" ? (
-            <form onSubmit={handleSendInvite}>
-              <div className="relative">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase mb-1.5">
-                  Add People
-                </label>
-
-                {/* Autocomplete Input Container */}
-                <div
-                  className="min-h-[50px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-colors"
-                  onClick={() =>
-                    document.getElementById("people-input")?.focus()
-                  }
-                >
-                  {/* Selected Chips */}
-                  {selectedPeople.map((person) => (
-                    <div
-                      key={person.email}
-                      className="flex items-center bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 px-2 py-1 rounded-full text-xs font-medium border border-brand-100 dark:border-brand-800/50"
-                    >
-                      {person.avatar && (
-                        <img
-                          src={person.avatar}
-                          alt=""
-                          className="w-4 h-4 rounded-full mr-1.5"
-                        />
-                      )}
-                      <span>{person.name || person.email}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemovePerson(person.email);
-                        }}
-                        className="ml-1.5 p-0.5 hover:bg-brand-200 dark:hover:bg-brand-800 rounded-full text-brand-600 dark:text-brand-400 transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* Input Field */}
-                  <input
-                    id="people-input"
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={
-                      selectedPeople.length === 0
-                        ? "Enter name or email..."
-                        : ""
-                    }
-                    className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-slate-900 dark:text-white placeholder-slate-400"
-                    autoComplete="off"
-                  />
+        {/* Content - Public Link Only */}
+        <div className="p-6">
+          {isLoading ? (
+            <div className="space-y-6 animate-pulse">
+              {/* Skeleton for toggle section */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center flex-1">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 mr-3"></div>
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32"></div>
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-40"></div>
+                  </div>
                 </div>
-
-                {/* Dropdown Suggestions */}
-                {showSuggestions && query && suggestions.length > 0 && (
-                  <div
-                    ref={dropdownRef}
-                    className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                  >
-                    {suggestions.map((contact) => (
-                      <div
-                        key={contact.email}
-                        onClick={() => handleAddPerson(contact)}
-                        className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer flex items-center transition-colors"
-                      >
-                        <img
-                          src={contact.avatar}
-                          alt={contact.name}
-                          className="w-8 h-8 rounded-full mr-3 border border-slate-100 dark:border-slate-700"
-                        />
-                        <div className="overflow-hidden">
-                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
-                            {contact.name}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {contact.email}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* "Invite this email" option if no suggestions match */}
-                {showSuggestions &&
-                  query &&
-                  suggestions.length === 0 &&
-                  query.includes("@") &&
-                  !isSearching && (
-                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-2">
-                      <div
-                        onClick={() =>
-                          handleAddPerson({ email: query, name: query })
-                        }
-                        className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer flex items-center rounded transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-full mr-3 bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
-                          <Mail size={16} />
-                        </div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">
-                          Invite <span className="font-semibold">{query}</span>
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                {/* "No user found" message */}
-                {showSuggestions &&
-                  query &&
-                  suggestions.length === 0 &&
-                  !query.includes("@") &&
-                  !isSearching && (
-                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-4 text-center">
-                      <SearchX
-                        size={20}
-                        className="mx-auto text-slate-400 mb-2"
-                      />
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        No user found
-                      </p>
-                    </div>
-                  )}
-
-                {/* Loading State for Search */}
-                {isSearching && query && (
-                  <div className="absolute right-3 top-[34px] pointer-events-none">
-                    <Loader2
-                      size={16}
-                      className="animate-spin text-slate-400"
-                    />
-                  </div>
-                )}
+                <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
               </div>
-
-              <ExpirationSelect />
-
-              <div className="mt-6">
-                <button
-                  type="submit"
-                  disabled={
-                    (selectedPeople.length === 0 && !query) || isSending
-                  }
-                  className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {isSending ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin mr-2" />
-                      Sending...
-                    </>
-                  ) : (
-                    "Send Invite"
-                  )}
-                </button>
-              </div>
-            </form>
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${isPublicLinkEnabled ? "bg-brand-100 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400" : "bg-slate-200 text-slate-500 dark:bg-slate-700"}`}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 transition-colors ${
+                      isToggling
+                        ? "bg-slate-300 dark:bg-slate-600"
+                        : isPublicLinkEnabled
+                          ? "bg-brand-100 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400"
+                          : "bg-slate-200 text-slate-500 dark:bg-slate-700"
+                    }`}
                   >
-                    <Link size={20} />
+                    {isToggling ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <Link size={20} />
+                    )}
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
                       Public Link Access
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {isPublicLinkEnabled
-                        ? "Anyone with the link can view"
-                        : "Link sharing is disabled"}
+                      {isToggling
+                        ? "Updating..."
+                        : isPublicLinkEnabled
+                          ? "Anyone with the link can view"
+                          : "Enable link sharing"}
                     </p>
                   </div>
                 </div>
@@ -443,19 +245,20 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, file }) => {
                     type="checkbox"
                     className="sr-only peer"
                     checked={isPublicLinkEnabled}
-                    onChange={() =>
-                      setIsPublicLinkEnabled(!isPublicLinkEnabled)
-                    }
+                    disabled={isToggling}
+                    onChange={handleTogglePublicLink}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 dark:peer-focus:ring-brand-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-600"></div>
+                  <div
+                    className={`w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 dark:peer-focus:ring-brand-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-600 ${
+                      isToggling ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  ></div>
                 </label>
               </div>
 
-              {isPublicLinkEnabled && (
+              {isPublicLinkEnabled && !isToggling && (
                 <div className="animate-in fade-in slide-in-from-top-2">
-                  <ExpirationSelect />
-
-                  <div className="mt-4">
+                  <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase mb-1.5">
                       Link URL
                     </label>
@@ -463,15 +266,26 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, file }) => {
                       <input
                         type="text"
                         readOnly
-                        value={`https://cloudzoon.com/s/${file.id}/a8s9d`}
+                        value={shareLink}
                         className="flex-1 block w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-l-lg text-sm text-slate-500 dark:text-slate-400 focus:outline-none"
                       />
                       <button
                         onClick={handleCopyLink}
-                        className="px-4 py-2 bg-white dark:bg-slate-700 border border-l-0 border-slate-200 dark:border-slate-700 rounded-r-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 font-medium text-sm transition-colors flex items-center"
+                        disabled={!shareLink}
+                        className={`px-4 py-2 border border-l-0 border-slate-200 dark:border-slate-700 rounded-r-lg font-medium text-sm transition-all flex items-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                          copied
+                            ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400"
+                            : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600"
+                        }`}
                       >
                         {copied ? (
-                          <Check size={16} className="text-green-500" />
+                          <span className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-200">
+                            <Check
+                              size={16}
+                              className="text-green-600 dark:text-green-400"
+                            />
+                            {/* <span className="text-xs">Copied!</span> */}
+                          </span>
                         ) : (
                           <Copy size={16} />
                         )}

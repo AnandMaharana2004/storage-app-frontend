@@ -337,9 +337,10 @@ export const fileService = {
     await axiosInstance.delete("/files/trash/empty");
   },
 
-  getPublicFile: async (fileId: string, token: string): Promise<FileItem> => {
-    // Implement if needed
-    throw new Error("Not implemented");
+  getPublicFile: async (token: string): Promise<FileItem> => {
+    const result = await axiosInstance.get(`/share/public/${token}`);
+    // throw new Error("Not implemented");
+    return result.data.data;
   },
 
   sendInvite: async (fileId: string, emails: string[]): Promise<void> => {
