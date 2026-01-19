@@ -7,6 +7,7 @@ import {
   Trash2,
   RotateCcw,
   Edit2,
+  MapPin,
 } from "lucide-react";
 import { FileItem } from "../types";
 import { FileIcon } from "./FileCard";
@@ -20,6 +21,7 @@ interface FileListProps {
   onDeleteForever?: (id: string) => void;
   onShare?: (file: FileItem) => void;
   onRename?: (file: FileItem) => void;
+  showPath?: boolean; // NEW: Show file path
 }
 
 interface FileRowProps {
@@ -31,7 +33,13 @@ interface FileRowProps {
   onDeleteForever?: (id: string) => void;
   onShare?: (file: FileItem) => void;
   onRename?: (file: FileItem) => void;
+  showPath?: boolean; // NEW: Show file path
 }
+
+// NEW: Helper function to format path
+const formatPath = (filePath: string) => {
+  return filePath.replace(/^\//, "").split("/").slice(1).join(" > ") || "Root";
+};
 
 const FileRow: React.FC<FileRowProps> = ({
   file,
@@ -42,6 +50,7 @@ const FileRow: React.FC<FileRowProps> = ({
   onDeleteForever,
   onShare,
   onRename,
+  showPath = false, // NEW
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState<"top" | "bottom">("bottom");
@@ -98,6 +107,17 @@ const FileRow: React.FC<FileRowProps> = ({
                     <span>Starred</span>
                   </div>
                 )}
+
+                {/* NEW: Path display for shared/trash views */}
+                {showPath && (file as any).path && (
+                  <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                    <MapPin size={10} className="mr-1" />
+                    <span className="truncate max-w-[200px]">
+                      {formatPath((file as any).path)}
+                    </span>
+                  </div>
+                )}
+
                 <span className="text-xs text-slate-400 dark:text-slate-500 sm:hidden">
                   {file.size}
                 </span>
@@ -278,6 +298,7 @@ const FileList: React.FC<FileListProps> = ({
   onDeleteForever,
   onShare,
   onRename,
+  showPath = false, // NEW: default to false
 }) => {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full flex flex-col transition-colors">
@@ -295,6 +316,7 @@ const FileList: React.FC<FileListProps> = ({
                 onDeleteForever={onDeleteForever}
                 onShare={onShare}
                 onRename={onRename}
+                showPath={showPath} // NEW: pass it down
               />
             ))}
           </tbody>

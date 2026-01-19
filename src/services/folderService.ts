@@ -24,4 +24,10 @@ export const folderService = {
 
     return newFolder;
   },
+
+  deleteFolder: async (folderId: string): Promise<void> => {
+    const result = await axiosInstance.patch("/directory/delete", {
+      directoryId: folderId,
+    });
+  },
 };

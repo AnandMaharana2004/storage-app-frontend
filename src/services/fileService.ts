@@ -333,6 +333,35 @@ export const fileService = {
     }
   },
 
+  fetchPublicFiles: async (): Promise<{
+    files: FileItem[];
+    stats: { totalFiles: number; totalSize: string };
+  }> => {
+    const result = await axiosInstance.get("/files/public");
+    const { files, stats } = result.data.data;
+
+    const transformedFiles = files.map((f: any) => ({
+      id: f._id,
+      name: f.name,
+      type: getFileType(f.extension) || "image",
+      size: formatFileSize(f.size),
+      thumbnail: f.url,
+      url: f.url,
+      parentFolderId: f.parentDirId,
+      sharedAt: f.sharedAt,
+      publicUrl: f.publicUrl,
+      path: f.path,
+      pathSegments: f.pathSegments,
+    }));
+
+    return {
+      files: transformedFiles,
+      stats: {
+        totalFiles: stats.totalFiles,
+        totalSize: formatFileSize(stats.totalSize),
+      },
+    };
+  },
   emptyTrash: async (): Promise<void> => {
     await axiosInstance.delete("/files/trash/empty");
   },

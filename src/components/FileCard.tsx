@@ -15,8 +15,9 @@ import {
   Music,
   File,
   MapPin,
+  Copy,
 } from "lucide-react";
-import { defaultAllowedOrigins } from "vite";
+import { api } from "../services/api";
 
 // Mock types for demonstration
 interface FileItem {
@@ -48,7 +49,10 @@ interface FileCardProps {
   onDeleteForever?: (id: string) => void;
   onShare?: (file: FileItem) => void;
   onRename?: (file: FileItem) => void;
-  path?: string; // NEW: Optional path prop for trash view
+  path?: string; // Optional path prop for trash/shared view
+  showPublicBadge?: boolean; // NEW: Show public badge
+  publicUrl?: string; // NEW: Public URL for sharing
+  onCopyLink?: (url: string) => void; // NEW: Copy link callback
 }
 
 export const FileIcon = ({ type }: { type: FileItem["type"] }) => {
@@ -93,7 +97,10 @@ const FileCard: React.FC<FileCardProps> = ({
   onDeleteForever,
   onShare,
   onRename,
-  path, // NEW: Receive path prop
+  path,
+  showPublicBadge = false, // NEW
+  publicUrl, // NEW
+  onCopyLink, // NEW
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState<"top" | "bottom">("bottom");
@@ -118,7 +125,18 @@ const FileCard: React.FC<FileCardProps> = ({
   };
 
   const downloadHandler = async () => {
-    alert("Download functionality - implement with your API");
+    try {
+      const { downloadUrl, fileName } = await api.downloadFile(file.id);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = fileName || file.name;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert("Failed to download file");
+    }
   };
 
   // Format path for display
@@ -187,6 +205,7 @@ const FileCard: React.FC<FileCardProps> = ({
             </div>
           )}
 
+          {/* Badges */}
           <div className="absolute top-2 left-2 flex gap-1 z-10">
             {file.isStarred && !file.deletedAt && (
               <div className="bg-white/90 dark:bg-slate-800/90 p-1 rounded-full text-yellow-500 shadow-sm">
@@ -194,6 +213,14 @@ const FileCard: React.FC<FileCardProps> = ({
               </div>
             )}
           </div>
+
+          {/* NEW: Public Badge */}
+          {showPublicBadge && !isTrashItem && (
+            <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+              <Share2 size={12} />
+              <span>Public</span>
+            </div>
+          )}
         </div>
 
         <div className="p-4 flex-1 flex flex-col justify-between bg-white dark:bg-slate-900 relative rounded-b-xl transition-colors">
@@ -211,7 +238,7 @@ const FileCard: React.FC<FileCardProps> = ({
                 <span>{file.date}</span>
               </div>
 
-              {/* NEW: Show path inside card if provided */}
+              {/* Show path if provided */}
               {path && (
                 <div className="mt-2 flex items-start text-xs text-slate-500 dark:text-slate-400">
                   <MapPin size={11} className="mr-1 mt-0.5 shrink-0" />
@@ -225,6 +252,20 @@ const FileCard: React.FC<FileCardProps> = ({
                 <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1 font-medium flex items-center">
                   Shared by {file.sharedBy}
                 </p>
+              )}
+
+              {/* NEW: Copy Public Link Button */}
+              {publicUrl && onCopyLink && !isTrashItem && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCopyLink(publicUrl);
+                  }}
+                  className="w-full mt-2 px-3 py-1.5 text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Copy size={12} />
+                  Copy public link
+                </button>
               )}
             </div>
 
