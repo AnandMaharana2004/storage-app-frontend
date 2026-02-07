@@ -1,8 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import { GoogleLogin } from "@react-oauth/google";
+
+// Add global type augmentation for window.google
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          cancel: () => void;
+        };
+      };
+    };
+  }
+}
 
 const GoogleIcon = () => (
   <svg
@@ -93,6 +106,13 @@ const SignIn: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Disable Google One Tap on this page
+  useEffect(() => {
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.cancel();
+    }
+  }, []);
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,12 +215,13 @@ const SignIn: React.FC = () => {
           <Divider text="Or continue with" />
         </div>
 
-        {/* Google Sign In */}
-        <div className="mt-6">
+        {/* Google Sign In - Centered */}
+        <div className="mt-6 flex justify-center">
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
             useOneTap={false}
+            width="384"
           />
         </div>
 
