@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SidebarTab } from "../types";
 import { useUser } from "../context/UserContext";
+import { redirect, useNavigate } from "react-router-dom";
 
 interface SidebarProps {
   activeTab: SidebarTab;
@@ -46,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const usagePercent = (storage.used / storage.total) * 100;
   const isCritical = usagePercent > 90;
-
+  const navigate = useNavigate();
   return (
     <>
       {/* Mobile Backdrop */}
@@ -162,11 +163,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             </p>
 
             {isCritical ? (
-              <button className="w-full py-1.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+              <button
+                className="w-full py-1.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                onClick={() => {
+                  return navigate("/plans");
+                }}
+              >
                 Free up space
               </button>
             ) : (
-              <button className="w-full py-1.5 text-xs font-medium text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors">
+              <button
+                className="w-full py-1.5 text-xs font-medium text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+                onClick={() => {
+                  return navigate("/plans");
+                }}
+              >
                 Upgrade Plan
               </button>
             )}

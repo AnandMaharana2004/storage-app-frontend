@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import axiosInstance from "@/src/services/axios";
 import imageCompression from "browser-image-compression";
+import { useNavigate } from "react-router-dom";
 
 // Internal Modal Component
 const ChangePasswordModal = ({
@@ -160,7 +161,7 @@ const ProfileView: React.FC = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [toastStatus, setToastStatus] = useState<ToastStatus>("idle");
   const [toastMessage, setToastMessage] = useState("");
-
+  const navigate = useNavigate();
   // Local form state
   const [fullName, setFullName] = useState(user?.name || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -516,7 +517,10 @@ const ProfileView: React.FC = () => {
                     Active
                   </span>
                 </div>
-                <button className="w-full py-2 border border-brand-200 dark:border-brand-900 text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40 rounded-lg text-sm font-medium transition-colors">
+                <button
+                  className="w-full py-2 border border-brand-200 dark:border-brand-900 text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40 rounded-lg text-sm font-medium transition-colors"
+                  onClick={() => navigate("/plans")}
+                >
                   Upgrade to Pro
                 </button>
               </div>
