@@ -10,6 +10,7 @@ import PublicFileView from "./components/PublicFileView";
 import { UserProvider, useUser } from "./context/UserContext";
 import { FileSystemProvider } from "./context/FileSystemContext";
 import { AdminProvider } from "./context/AdminContext";
+import PricingPage from "./components/views/PaymentView";
 
 // Global Loader Component
 const GlobalLoader = () => (
@@ -185,6 +186,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/plans"
+        element={
+          <ProtectedRoute>
+            <PricingPage />
           </ProtectedRoute>
         }
       />

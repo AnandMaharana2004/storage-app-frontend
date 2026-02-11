@@ -537,7 +537,7 @@ const Dashboard: React.FC = () => {
       <CreateFolderModal
         isOpen={isCreateFolderOpen}
         onClose={() => setIsCreateFolderOpen(false)}
-        onCreate={createFolder}
+        // onCreate={createFolder}
       />
 
       {renamingFile && (
