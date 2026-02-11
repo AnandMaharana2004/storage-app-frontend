@@ -37,6 +37,86 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const [textError, setTextError] = useState<string>("");
   const menuRef = useRef<HTMLDivElement>(null);
 
+  /* ---------------- Helper Functions ---------------- */
+
+  // Detect file extension for syntax highlighting hint
+  const getFileExtension = (filename: string): string => {
+    const parts = filename.split(".");
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
+  };
+
+  // Check if file is text-viewable based on extension
+  const isTextFile = (filename: string): boolean => {
+    const ext = getFileExtension(filename);
+    const textExtensions = [
+      // Programming languages
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "py",
+      "java",
+      "cpp",
+      "c",
+      "h",
+      "hpp",
+      "cs",
+      "php",
+      "rb",
+      "go",
+      "rs",
+      "swift",
+      "kt",
+      "m",
+      "scala",
+      // Web
+      "html",
+      "htm",
+      "css",
+      "scss",
+      "sass",
+      "less",
+      "vue",
+      "svelte",
+      // Data/Config
+      "json",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+      "ini",
+      "conf",
+      "config",
+      "env",
+      "properties",
+      // Markup/Documentation
+      "md",
+      "markdown",
+      "rst",
+      "txt",
+      "text",
+      "log",
+      // Shell/Scripts
+      "sh",
+      "bash",
+      "zsh",
+      "fish",
+      "ps1",
+      "bat",
+      "cmd",
+      // Others
+      "sql",
+      "graphql",
+      "proto",
+      "dockerfile",
+      "makefile",
+      "gitignore",
+      "editorconfig",
+      "htaccess",
+    ];
+    return textExtensions.includes(ext) || ext === "";
+  };
+
   /* ---------------- Effects ---------------- */
 
   useEffect(() => {
@@ -56,13 +136,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMenu]);
 
-  // Fetch text content for code/doc types
+  // Fetch text content for code/doc types or text files
   useEffect(() => {
     if (!file) return;
 
-    const shouldFetchText = file.type === "code" || file.type === "doc";
+    const shouldFetch =
+      file.type === "code" || file.type === "doc" || isTextFile(file.name);
 
-    if (shouldFetchText) {
+    if (shouldFetch) {
       setIsLoadingText(true);
       setTextError("");
       setTextContent("");
@@ -85,9 +166,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   if (!file) return null;
 
-  /* ---------------- Helpers ---------------- */
+  /* ---------------- More Helpers ---------------- */
 
   const isInlinePreview = INLINE_PREVIEW_TYPES.includes(file.type);
+
+  // Determine if file should be treated as text based on type or extension
+  const shouldDisplayAsText =
+    file.type === "code" || file.type === "doc" || isTextFile(file.name);
 
   const downloadHandler = async () => {
     try {
@@ -104,43 +189,97 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
   };
 
-  // Detect file extension for syntax highlighting hint
-  const getFileExtension = (filename: string): string => {
-    const parts = filename.split(".");
-    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
-  };
-
   const getLanguageClass = (filename: string): string => {
     const ext = getFileExtension(filename);
     const languageMap: Record<string, string> = {
+      // JavaScript/TypeScript
       js: "javascript",
       jsx: "javascript",
       ts: "typescript",
       tsx: "typescript",
+      mjs: "javascript",
+      cjs: "javascript",
+      // Python
       py: "python",
+      pyw: "python",
+      pyx: "python",
+      // Java/Kotlin/Scala
       java: "java",
-      cpp: "cpp",
-      c: "c",
-      cs: "csharp",
-      php: "php",
-      rb: "ruby",
-      go: "go",
-      rs: "rust",
-      swift: "swift",
       kt: "kotlin",
+      kts: "kotlin",
+      scala: "scala",
+      // C/C++
+      c: "c",
+      h: "c",
+      cpp: "cpp",
+      hpp: "cpp",
+      cc: "cpp",
+      cxx: "cpp",
+      // C#
+      cs: "csharp",
+      // Web
       html: "html",
+      htm: "html",
       css: "css",
       scss: "scss",
+      sass: "sass",
+      less: "less",
+      vue: "vue",
+      svelte: "svelte",
+      // PHP
+      php: "php",
+      // Ruby
+      rb: "ruby",
+      // Go
+      go: "go",
+      // Rust
+      rs: "rust",
+      // Swift
+      swift: "swift",
+      // Shell
+      sh: "bash",
+      bash: "bash",
+      zsh: "bash",
+      fish: "bash",
+      ps1: "powershell",
+      bat: "batch",
+      cmd: "batch",
+      // Data/Config
       json: "json",
       xml: "xml",
       yaml: "yaml",
       yml: "yaml",
+      toml: "toml",
+      ini: "ini",
+      conf: "config",
+      config: "config",
+      env: "env",
+      properties: "properties",
+      // Markdown/Docs
       md: "markdown",
-      sql: "sql",
-      sh: "bash",
-      bash: "bash",
+      markdown: "markdown",
+      rst: "restructuredtext",
       txt: "plaintext",
+      text: "plaintext",
+      log: "log",
+      // SQL
+      sql: "sql",
+      // Other
+      graphql: "graphql",
+      proto: "protobuf",
+      dockerfile: "dockerfile",
+      makefile: "makefile",
+      gitignore: "gitignore",
     };
+
+    // Handle special cases (files without extensions)
+    const filenameLower = filename.toLowerCase();
+    if (filenameLower === "dockerfile") return "dockerfile";
+    if (filenameLower === "makefile") return "makefile";
+    if (filenameLower.startsWith(".env")) return "env";
+    if (filenameLower === ".gitignore") return "gitignore";
+    if (filenameLower === ".editorconfig") return "editorconfig";
+
     return languageMap[ext] || "plaintext";
   };
 
@@ -336,7 +475,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           )}
 
           {/* Text/Code Preview */}
-          {(file.type === "code" || file.type === "doc") && (
+          {shouldDisplayAsText && (
             <div className="w-full h-full overflow-auto">
               {isLoadingText ? (
                 <div className="flex items-center justify-center h-full">
@@ -377,29 +516,28 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           )}
 
           {/* No Preview Available */}
-          {!["image", "video", "audio", "pdf", "code", "doc"].includes(
-            file.type,
-          ) && (
-            <div className="text-center p-8">
-              <FileText
-                size={64}
-                className="mx-auto mb-4 text-slate-400 dark:text-slate-600"
-              />
-              <p className="mb-2 text-slate-700 dark:text-slate-300 font-medium">
-                No preview available
-              </p>
-              <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-                This file type cannot be previewed in the browser
-              </p>
-              <button
-                onClick={downloadHandler}
-                className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-medium
+          {!["image", "video", "audio", "pdf"].includes(file.type) &&
+            !shouldDisplayAsText && (
+              <div className="text-center p-8">
+                <FileText
+                  size={64}
+                  className="mx-auto mb-4 text-slate-400 dark:text-slate-600"
+                />
+                <p className="mb-2 text-slate-700 dark:text-slate-300 font-medium">
+                  No preview available
+                </p>
+                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+                  This file type cannot be previewed in the browser
+                </p>
+                <button
+                  onClick={downloadHandler}
+                  className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-medium
                    hover:bg-blue-500 transition-colors shadow-sm"
-              >
-                Download File
-              </button>
-            </div>
-          )}
+                >
+                  Download File
+                </button>
+              </div>
+            )}
         </div>
       </div>
     </div>
