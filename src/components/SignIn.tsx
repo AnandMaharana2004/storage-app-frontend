@@ -196,7 +196,7 @@ const SignIn: React.FC = () => {
         </div>
 
         {/* Google Sign In */}
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center">
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
